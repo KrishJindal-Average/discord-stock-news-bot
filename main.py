@@ -49,6 +49,8 @@ ARTICLE_COOLDOWN = 2
 MINIMUM_SCORE = 18
 CACHE_LIMIT = 1500
 MAX_SUMMARY_LENGTH = 900
+POST_WINDOW_SECONDS = 2 * 60 * 60
+MAX_POSTS_PER_WINDOW = 5
 
 # =========================================================
 # WATCHLIST
@@ -95,12 +97,13 @@ STOCK_TICKERS = {
 
 RSS_FEEDS = [
 
-    # INDIA
+    # INDIA: Market-moving business feeds
     "https://timesofindia.indiatimes.com/rssfeeds/1898055.cms",
     "https://www.thehindu.com/business/feeder/default.rss",
     "https://economictimes.indiatimes.com/markets/rssfeeds/1977021501.cms",
+    "https://www.business-standard.com/rss/news.xml",
 
-    # GLOBAL
+    # GLOBAL: High-impact financial feeds
     "https://feeds.reuters.com/reuters/businessNews",
     "https://www.cnbc.com/id/100003114/device/rss/rss.html"
 
@@ -240,6 +243,13 @@ def save_cache(cache):
     with open(CACHE_FILE, "w") as file:
 
         json.dump(cache, file)
+
+
+def prune_post_history(post_timestamps):
+
+    cutoff = time.time() - POST_WINDOW_SECONDS
+
+    return [ts for ts in post_timestamps if ts >= cutoff]
 
 # =========================================================
 # HASH SYSTEM
@@ -916,6 +926,7 @@ print(f"Scan Interval: {CHECK_INTERVAL} seconds")
 print("====================================")
 
 cycle_number = 1
+post_timestamps = []
 
 # =========================================================
 # MAIN LOOP
@@ -937,6 +948,22 @@ while True:
         rss_news = fetch_rss_news()
 
         news = market_news + rss_news
+        post_timestamps = prune_post_history(post_timestamps)
+
+        if len(post_timestamps) >= MAX_POSTS_PER_WINDOW:
+
+            print(
+                "Reached the 2-hour posting limit",
+                "– waiting for the next cycle."
+            )
+
+            continue
+
+        news = sorted(
+            news,
+            key=lambda item: calculate_score(item)[0],
+            reverse=True
+        )
 
         print(f"Total Articles: {len(news)}")
 
@@ -1002,6 +1029,17 @@ while True:
                 combined_text
             )
 
+            post_timestamps = prune_post_history(post_timestamps)
+
+            if len(post_timestamps) >= MAX_POSTS_PER_WINDOW:
+
+                print(
+                    "Reached the 2-hour posting limit",
+                    "during the scan. Skipping remaining articles."
+                )
+
+                break
+
             print("------------------------------------")
             print("Headline:", headline)
             print("Score:", score)
@@ -1026,6 +1064,7 @@ while True:
             )
 
             cache.append(article_hash)
+            post_timestamps.append(time.time())
 
             cache = cache[-CACHE_LIMIT:]
 
