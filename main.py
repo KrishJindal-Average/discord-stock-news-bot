@@ -1,11 +1,35 @@
+
 import requests
 import time
 import os
 import json
 import hashlib
 import platform
+import feedparser
+
 from datetime import datetime
 from dotenv import load_dotenv
+
+# =========================================================
+# SMART MARKET TERMINAL v5.0
+# =========================================================
+# FEATURES:
+#
+# ✅ Real Market News
+# ✅ Political + Economic News
+# ✅ RSS Intelligence System
+# ✅ Duplicate Detection
+# ✅ Sentiment Engine
+# ✅ Sector Detection
+# ✅ Market Risk Engine
+# ✅ Live Stock Prices
+# ✅ Beautiful Discord Embeds
+# ✅ Breaking News Detection
+# ✅ Market Intelligence Engine
+# ✅ Railway 24/7 Compatible
+# ✅ Bloomberg-style Alerts
+#
+# =========================================================
 
 # =========================================================
 # LOAD ENV VARIABLES
@@ -22,9 +46,9 @@ DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL")
 
 CHECK_INTERVAL = 30
 ARTICLE_COOLDOWN = 2
-MINIMUM_SCORE = 15
-CACHE_LIMIT = 1000
-MAX_SUMMARY_LENGTH = 700
+MINIMUM_SCORE = 18
+CACHE_LIMIT = 1500
+MAX_SUMMARY_LENGTH = 900
 
 # =========================================================
 # WATCHLIST
@@ -41,7 +65,6 @@ WATCHLIST = {
     "meta": "📘 META",
     "amd": "⚡ AMD",
     "intel": "💻 INTEL",
-    "netflix": "🎬 NETFLIX",
     "bitcoin": "₿ BITCOIN",
     "ethereum": "⟠ ETHEREUM"
 
@@ -62,10 +85,26 @@ STOCK_TICKERS = {
     "meta": "META",
     "amd": "AMD",
     "intel": "INTC",
-    "netflix": "NFLX",
     "bitcoin": "BINANCE:BTCUSDT"
 
 }
+
+# =========================================================
+# RSS SOURCES
+# =========================================================
+
+RSS_FEEDS = [
+
+    # INDIA
+    "https://timesofindia.indiatimes.com/rssfeeds/1898055.cms",
+    "https://www.thehindu.com/business/feeder/default.rss",
+    "https://economictimes.indiatimes.com/markets/rssfeeds/1977021501.cms",
+
+    # GLOBAL
+    "https://feeds.reuters.com/reuters/businessNews",
+    "https://www.cnbc.com/id/100003114/device/rss/rss.html"
+
+]
 
 # =========================================================
 # TRUSTED SOURCES
@@ -73,112 +112,69 @@ STOCK_TICKERS = {
 
 TRUSTED_SOURCES = {
 
-    "Reuters": 8,
-    "Bloomberg": 8,
-    "CNBC": 6,
-    "MarketWatch": 5,
-    "Barrons": 7,
-    "Financial Times": 8,
-    "Yahoo": 4,
-    "The Wall Street Journal": 8
+    "Reuters": 12,
+    "Bloomberg": 12,
+    "CNBC": 10,
+    "Financial Times": 12,
+    "The Hindu": 10,
+    "The Times of India": 9,
+    "Economic Times": 11,
+    "MarketWatch": 8
 
 }
 
 # =========================================================
-# HIGH IMPACT KEYWORDS
+# KEYWORD ENGINE
 # =========================================================
 
 KEYWORD_SCORES = {
 
-    # FED / MACRO
-    "fed": 15,
-    "federal reserve": 15,
-    "inflation": 12,
-    "cpi": 10,
-    "interest rates": 14,
-    "rate cut": 18,
-    "rate hike": 18,
-    "recession": 20,
+    # FED / ECONOMY
+    "fed": 20,
+    "federal reserve": 20,
+    "inflation": 18,
+    "interest rates": 18,
+    "rate cut": 25,
+    "rate hike": 25,
+    "recession": 30,
 
-    # MARKET
-    "market crash": 30,
-    "selloff": 18,
-    "surge": 8,
-    "rally": 7,
-    "record high": 10,
-    "plunge": 20,
-    "volatility": 8,
+    # MARKET EVENTS
+    "market crash": 40,
+    "selloff": 20,
+    "surge": 10,
+    "rally": 10,
+    "record high": 12,
+    "plunge": 22,
 
     # COMPANY EVENTS
-    "earnings": 14,
-    "guidance": 10,
-    "ipo": 10,
-    "merger": 16,
-    "acquisition": 16,
-    "bankruptcy": 25,
+    "earnings": 15,
+    "guidance": 12,
+    "ipo": 12,
+    "merger": 20,
+    "acquisition": 20,
+    "bankruptcy": 35,
 
-    # TECH / AI
-    "ai": 10,
-    "chip": 8,
-    "semiconductor": 10,
-    "gpu": 8,
+    # AI
+    "ai": 12,
+    "chip": 10,
+    "semiconductor": 14,
+    "gpu": 10,
 
     # CRYPTO
-    "bitcoin": 10,
-    "ethereum": 10,
-    "crypto": 10,
-    "etf": 10,
+    "bitcoin": 15,
+    "crypto": 15,
+    "etf": 12,
 
-    # NEGATIVE
-    "lawsuit": 10,
-    "investigation": 10,
-    "tariffs": 8
+    # POLITICAL
+    "war": 35,
+    "sanctions": 25,
+    "tariffs": 20,
+    "china": 10,
+    "rbi": 20,
+    "budget": 18,
+    "oil": 18,
+    "crude": 18
 
-}
-
-# =========================================================
-# SECTOR DETECTION
-# =========================================================
-
-SECTOR_KEYWORDS = {
-
-    "AI / Semiconductors": [
-        "nvidia",
-        "amd",
-        "intel",
-        "gpu",
-        "chip",
-        "semiconductor",
-        "ai"
-    ],
-
-    "Electric Vehicles": [
-        "tesla",
-        "ev",
-        "battery"
-    ],
-
-    "Big Tech": [
-        "apple",
-        "microsoft",
-        "amazon",
-        "google",
-        "meta"
-    ],
-
-    "Banking / Macro": [
-        "fed",
-        "inflation",
-        "interest rates",
-        "recession"
-    ],
-
-    "Crypto": [
-        "bitcoin",
-        "ethereum",
-        "crypto",
-        "etf"
-    ]
 }
 
 # =========================================================
@@ -196,7 +192,6 @@ BULLISH_WORDS = [
     "record high",
     "bullish",
     "expansion",
-    "breakthrough",
     "optimistic"
 
 ]
@@ -208,12 +203,11 @@ BEARISH_WORDS = [
     "selloff",
     "weak",
     "recession",
-    "lawsuit",
     "bankruptcy",
-    "miss",
+    "fear",
     "decline",
     "plunge",
-    "fear"
+    "panic"
 
 ]
 
@@ -248,7 +242,7 @@ def save_cache(cache):
         json.dump(cache, file)
 
 # =========================================================
-# HASH GENERATOR
+# HASH SYSTEM
 # =========================================================
 
 def generate_hash(text):
@@ -258,6 +252,7 @@ def generate_hash(text):
         .replace(",", "")
         .replace(".", "")
         .replace(":", "")
+        .replace("-", "")
         .strip()
     )
 
@@ -266,10 +261,10 @@ def generate_hash(text):
     ).hexdigest()
 
 # =========================================================
-# FETCH HIGH QUALITY NEWS
+# FETCH MARKET NEWS
 # =========================================================
 
-def fetch_news():
+def fetch_market_news():
 
     all_news = []
 
@@ -293,6 +288,8 @@ def fetch_news():
 
         try:
 
+            print(f"Fetching {symbol} news...")
+
             url = (
                 "https://finnhub.io/api/v1/company-news"
                 f"?symbol={symbol}"
@@ -303,26 +300,72 @@ def fetch_news():
 
             response = requests.get(
                 url,
-                timeout=15
+                timeout=5
             )
 
             data = response.json()
 
             if isinstance(data, list):
 
-                all_news.extend(data[:8])
+                all_news.extend(data[:5])
 
         except Exception as e:
 
             print(
-                f"NEWS FETCH ERROR ({symbol}):",
+                f"MARKET NEWS ERROR ({symbol}):",
                 e
             )
 
     return all_news
 
 # =========================================================
-# FETCH LIVE STOCK PRICE
+# FETCH RSS NEWS
+# =========================================================
+
+def fetch_rss_news():
+
+    rss_articles = []
+
+    for feed_url in RSS_FEEDS:
+
+        try:
+
+            print(f"Fetching RSS: {feed_url}")
+
+            feed = feedparser.parse(feed_url)
+
+            for entry in feed.entries[:5]:
+
+                rss_articles.append({
+
+                    "headline": entry.title,
+
+                    "summary": getattr(
+                        entry,
+                        "summary",
+                        ""
+                    ),
+
+                    "url": entry.link,
+
+                    "source": (
+                        feed.feed.title
+                        if hasattr(feed, "feed")
+                        else "RSS Feed"
+                    ),
+
+                    "image": ""
+
+                })
+
+        except Exception as e:
+
+            print("RSS ERROR:", e)
+
+    return rss_articles
+
+# =========================================================
+# FETCH STOCK PRICE
 # =========================================================
 
 def fetch_stock_price(symbol):
@@ -337,22 +380,22 @@ def fetch_stock_price(symbol):
 
         response = requests.get(
             url,
-            timeout=10
+            timeout=5
         )
 
         data = response.json()
 
-        current_price = data.get("c", 0)
-        change_percent = data.get("dp", 0)
-
-        return current_price, change_percent
+        return (
+            data.get("c", 0),
+            data.get("dp", 0)
+        )
 
     except:
 
         return None, None
 
 # =========================================================
-# DETECT PRIMARY STOCK
+# DETECT STOCK
 # =========================================================
 
 def detect_primary_stock(text):
@@ -366,29 +409,6 @@ def detect_primary_stock(text):
             return stock, ticker
 
     return None, None
-
-# =========================================================
-# DETECT SECTOR
-# =========================================================
-
-def detect_sector(text):
-
-    sectors = []
-
-    for sector, keywords in SECTOR_KEYWORDS.items():
-
-        for keyword in keywords:
-
-            if keyword in text.lower():
-
-                sectors.append(sector)
-                break
-
-    if not sectors:
-
-        return ["General Market"]
-
-    return sectors
 
 # =========================================================
 # DETECT SENTIMENT
@@ -424,6 +444,69 @@ def detect_sentiment(text):
     return "🟡 Neutral"
 
 # =========================================================
+# DETECT SECTOR
+# =========================================================
+
+def detect_sector(text):
+
+    text = text.lower()
+
+    sectors = []
+
+    if any(word in text for word in [
+        "nvidia",
+        "amd",
+        "chip",
+        "gpu",
+        "semiconductor",
+        "ai"
+    ]):
+
+        sectors.append(
+            "🤖 AI / Semiconductors"
+        )
+
+    if any(word in text for word in [
+        "tesla",
+        "ev",
+        "battery"
+    ]):
+
+        sectors.append(
+            "🚗 Electric Vehicles"
+        )
+
+    if any(word in text for word in [
+        "fed",
+        "inflation",
+        "interest rates",
+        "recession"
+    ]):
+
+        sectors.append(
+            "🏦 Macro Economy"
+        )
+
+    if any(word in text for word in [
+        "bitcoin",
+        "crypto",
+        "ethereum",
+        "etf"
+    ]):
+
+        sectors.append(
+            "₿ Crypto"
+        )
+
+    if not sectors:
+
+        sectors.append(
+            "🌍 General Markets"
+        )
+
+    return sectors
+
+# =========================================================
 # CALCULATE SCORE
 # =========================================================
 
@@ -454,24 +537,30 @@ def calculate_score(article):
         if keyword in text:
 
             score += value
-            matched_keywords.append(keyword)
+
+            matched_keywords.append(
+                keyword
+            )
 
     for stock in WATCHLIST:
 
         if stock in text:
 
-            score += 10
+            score += 12
+
             matched_stocks.append(
                 WATCHLIST[stock]
             )
 
-    if source in TRUSTED_SOURCES:
+    for trusted, bonus in TRUSTED_SOURCES.items():
 
-        score += TRUSTED_SOURCES[source]
+        if trusted.lower() in source.lower():
+
+            score += bonus
 
     score += len(matched_keywords) * 2
 
-    score += len(matched_stocks) * 3
+    score += len(matched_stocks) * 4
 
     return (
         score,
@@ -485,23 +574,23 @@ def calculate_score(article):
 
 def get_impact_level(score):
 
-    if score >= 50:
+    if score >= 70:
 
         return "☢️ EXTREME MARKET ALERT"
 
+    elif score >= 50:
+
+        return "🔥 CRITICAL MARKET EVENT"
+
     elif score >= 35:
 
-        return "🔥 CRITICAL IMPACT"
+        return "🚨 HIGH IMPACT NEWS"
 
-    elif score >= 25:
+    elif score >= 18:
 
-        return "🚨 HIGH IMPACT"
+        return "⚠️ IMPORTANT MARKET UPDATE"
 
-    elif score >= 15:
-
-        return "⚠️ MEDIUM IMPACT"
-
-    return "ℹ️ LOW IMPACT"
+    return "ℹ️ LOW PRIORITY"
 
 # =========================================================
 # RISK LEVEL
@@ -509,22 +598,26 @@ def get_impact_level(score):
 
 def get_risk_level(sentiment, score):
 
-    if sentiment == "🔴 Bearish" and score >= 30:
+    if sentiment == "🔴 Bearish":
 
-        return "🔴 HIGH RISK"
+        if score >= 50:
 
-    elif sentiment == "🟢 Bullish" and score >= 30:
+            return "🔴 EXTREME RISK"
 
-        return "🟢 HIGH OPPORTUNITY"
+        return "🟠 HIGH RISK"
 
-    elif score >= 15:
+    if sentiment == "🟢 Bullish":
 
-        return "🟡 MODERATE"
+        if score >= 50:
 
-    return "⚪ LOW"
+            return "🟢 MAJOR OPPORTUNITY"
+
+        return "🟢 POSITIVE"
+
+    return "🟡 NEUTRAL"
 
 # =========================================================
-# MARKET INTELLIGENCE ENGINE
+# MARKET ANALYSIS ENGINE
 # =========================================================
 
 def generate_market_analysis(
@@ -536,97 +629,74 @@ def generate_market_analysis(
 
     analysis = []
 
-    if score >= 50:
+    if score >= 70:
 
         analysis.append(
-            "Extremely high-impact market event detected."
+            "Extremely high-impact global market event detected."
+        )
+
+    elif score >= 50:
+
+        analysis.append(
+            "Critical financial development with strong market-moving potential."
         )
 
     elif score >= 35:
 
         analysis.append(
-            "Critical financial development with possible broad market impact."
+            "Major financial event likely to affect investor sentiment."
         )
 
-    elif score >= 25:
+    if "war" in keywords:
 
         analysis.append(
-            "High-impact market event detected."
-        )
-
-    if "AI / Semiconductors" in sectors:
-
-        analysis.append(
-            "AI and semiconductor equities may experience elevated volatility."
-        )
-
-    if "Electric Vehicles" in sectors:
-
-        analysis.append(
-            "EV sector momentum may shift significantly."
-        )
-
-    if "Banking / Macro" in sectors:
-
-        analysis.append(
-            "Macro-economic expectations and interest-rate outlook could change."
-        )
-
-    if "Crypto" in sectors:
-
-        analysis.append(
-            "Cryptocurrency markets may react aggressively."
-        )
-
-    if "earnings" in keywords:
-
-        analysis.append(
-            "Corporate earnings remain a major market catalyst."
+            "Geopolitical tensions may significantly increase market volatility."
         )
 
     if "inflation" in keywords:
 
         analysis.append(
-            "Inflation data may influence Federal Reserve decisions."
+            "Inflation expectations could influence central bank policy."
+        )
+
+    if "earnings" in keywords:
+
+        analysis.append(
+            "Corporate earnings remain a key market catalyst."
         )
 
     if "rate cut" in keywords:
 
         analysis.append(
-            "Rate cuts are generally supportive for growth assets."
+            "Rate cuts are generally supportive for growth equities."
         )
 
-    if "recession" in keywords:
+    if "bitcoin" in keywords:
 
         analysis.append(
-            "Recession concerns may trigger defensive positioning."
+            "Crypto markets may experience sharp momentum shifts."
         )
 
     if sentiment == "🟢 Bullish":
 
         analysis.append(
-            "Overall sentiment currently appears bullish."
+            "Current overall sentiment appears bullish."
         )
 
     elif sentiment == "🔴 Bearish":
 
         analysis.append(
-            "Overall sentiment currently appears bearish."
-        )
-
-    else:
-
-        analysis.append(
-            "Overall market sentiment remains neutral."
+            "Current overall sentiment appears bearish."
         )
 
     return " ".join(analysis)
 
 # =========================================================
-# SEND TO DISCORD
+# SEND DISCORD ALERT
 # =========================================================
 
 def send_to_discord(
+
     article,
     score,
     keywords,
@@ -636,6 +706,7 @@ def send_to_discord(
     stock_price,
     stock_change,
     ticker
+
 ):
 
     headline = article.get(
@@ -681,24 +752,37 @@ def send_to_discord(
         "%H:%M:%S"
     )
 
+    embed_color = 16711680
+
+    if sentiment == "🟢 Bullish":
+
+        embed_color = 65280
+
+    elif sentiment == "🟡 Neutral":
+
+        embed_color = 16776960
+
     embed = {
 
         "title": impact,
 
-        "description": f"## {headline}",
+        "description":
+            f"## 📰 {headline}",
 
         "url": url,
 
-        "color": 16724787,
+        "color": embed_color,
 
         "thumbnail": {
+
             "url": image
+
         } if image else {},
 
         "fields": [
 
             {
-                "name": "📊 Impact Score",
+                "name": "📊 Market Impact Score",
                 "value": str(score),
                 "inline": True
             },
@@ -710,41 +794,51 @@ def send_to_discord(
             },
 
             {
-                "name": "⚠️ Risk Level",
+                "name": "⚠️ Risk Analysis",
                 "value": risk,
                 "inline": True
             },
 
             {
-                "name": "📈 Live Market Data",
+                "name": "💹 Live Market Data",
                 "value":
-                    f"{ticker}\n"
-                    f"💲 {stock_price}\n"
-                    f"📊 {stock_change}%",
-                "inline": False
-            } if ticker and stock_price else {
-                "name": "📈 Live Market Data",
-                "value": "Unavailable",
+
+                    f"Ticker: {ticker}\n"
+                    f"Price: ${stock_price}\n"
+                    f"Daily Change: {stock_change}%"
+
+                if ticker and stock_price
+
+                else "No live stock data",
+
                 "inline": False
             },
 
             {
-                "name": "📂 Sectors",
-                "value": ", ".join(sectors),
+                "name": "🌍 Market Sectors",
+                "value": "\n".join(sectors),
                 "inline": False
             },
 
             {
-                "name": "📈 Watchlist Hits",
-                "value": ", ".join(stocks)
-                if stocks else "None",
+                "name": "📈 Watchlist Detection",
+                "value":
+
+                    ", ".join(stocks)
+
+                    if stocks else "None",
+
                 "inline": False
             },
 
             {
                 "name": "🔑 Trigger Keywords",
-                "value": ", ".join(keywords)
-                if keywords else "None",
+                "value":
+
+                    ", ".join(keywords)
+
+                    if keywords else "None",
+
                 "inline": False
             },
 
@@ -755,34 +849,55 @@ def send_to_discord(
             },
 
             {
-                "name": "📄 Article Summary",
-                "value": summary[:MAX_SUMMARY_LENGTH],
+                "name": "📄 Executive Summary",
+                "value":
+                    summary[:MAX_SUMMARY_LENGTH],
+
                 "inline": False
+            },
+
+            {
+                "name": "📰 Source",
+                "value": source,
+                "inline": True
+            },
+
+            {
+                "name": "⏰ Scan Time",
+                "value": current_time,
+                "inline": True
             }
 
         ],
 
         "footer": {
+
             "text":
-                f"Smart Market Terminal • {current_time}"
+                "SMART MARKET TERMINAL • LIVE FINANCIAL INTELLIGENCE"
+
         }
 
     }
 
     data = {
+
         "embeds": [embed]
+
     }
 
     response = requests.post(
+
         DISCORD_WEBHOOK_URL,
         json=data,
-        timeout=20
+        timeout=10
+
     )
 
     print("====================================")
-    print("DISCORD STATUS:", response.status_code)
-    print("HEADLINE:", headline)
-    print("SCORE:", score)
+    print("ALERT SENT")
+    print("Headline:", headline)
+    print("Score:", score)
+    print("Status:", response.status_code)
     print("====================================")
 
 # =========================================================
@@ -796,7 +911,7 @@ print("====================================")
 
 print(f"System: {platform.system()}")
 print(f"Started: {datetime.now()}")
-print(f"Check Interval: {CHECK_INTERVAL} seconds")
+print(f"Scan Interval: {CHECK_INTERVAL} seconds")
 
 print("====================================")
 
@@ -817,7 +932,13 @@ while True:
 
         cache = load_cache()
 
-        news = fetch_news()
+        market_news = fetch_market_news()
+
+        rss_news = fetch_rss_news()
+
+        news = market_news + rss_news
+
+        print(f"Total Articles: {len(news)}")
 
         for article in news:
 
@@ -844,62 +965,6 @@ while True:
                 headline + " " + summary
             )
 
-            # FINANCE FILTER
-            finance_keywords = [
-
-                "stocks",
-                "shares",
-                "wall street",
-                "market",
-                "nasdaq",
-                "dow",
-                "s&p",
-
-                "fed",
-                "federal reserve",
-                "inflation",
-                "interest rates",
-                "recession",
-                "economy",
-
-                "earnings",
-                "guidance",
-                "revenue",
-                "profit",
-                "ipo",
-                "merger",
-                "acquisition",
-
-                "ai",
-                "chip",
-                "semiconductor",
-                "gpu",
-
-                "nvidia",
-                "tesla",
-                "apple",
-                "microsoft",
-                "amazon",
-                "google",
-                "meta",
-                "amd",
-                "intel",
-
-                "bitcoin",
-                "ethereum",
-                "crypto",
-                "etf"
-
-            ]
-
-            if not any(
-                word in combined_text.lower()
-                for word in finance_keywords
-            ):
-
-                continue
-
-            # DUPLICATE DETECTION
             article_hash = generate_hash(
                 headline
             )
@@ -908,7 +973,6 @@ while True:
 
                 continue
 
-            # DETECT STOCK
             primary_stock, ticker = (
                 detect_primary_stock(
                     combined_text
@@ -930,11 +994,11 @@ while True:
                 calculate_score(article)
             )
 
-            sectors = detect_sector(
+            sentiment = detect_sentiment(
                 combined_text
             )
 
-            sentiment = detect_sentiment(
+            sectors = detect_sector(
                 combined_text
             )
 
@@ -948,6 +1012,7 @@ while True:
                 continue
 
             send_to_discord(
+
                 article,
                 score,
                 keywords,
@@ -957,6 +1022,7 @@ while True:
                 stock_price,
                 stock_change,
                 ticker
+
             )
 
             cache.append(article_hash)
@@ -991,4 +1057,5 @@ while True:
 
         time.sleep(1)
 
-    print("\nStarting new market scan...")
+    print("\nStarting next market scan...")
+
